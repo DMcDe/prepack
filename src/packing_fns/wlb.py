@@ -1,4 +1,4 @@
-from prepack.packer import OfflinePacker
+from src.prepack.packer import OfflinePacker
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 from typing import List

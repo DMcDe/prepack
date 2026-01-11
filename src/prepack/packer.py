@@ -23,11 +23,7 @@ class OfflineDataset(Dataset):
         :type data_col: str
         """
         with open(json_path, 'rt') as fd:
-            # TODO: Test whether this is necessary or whether I can just use len(fd)
-            documents = [json.loads(line)[data_col] for line in fd]
-            print(len(documents))
-            print(len(fd))
-            self.num_docs = len(documents)
+            self.num_docs = sum(1 for _ in fd)
             
     def __len__(self) -> int:
         """
@@ -152,7 +148,7 @@ class RuntimeDataset(Dataset):
         return self.length
     
     def __getitem__(self, index: int) -> Tensor:
-        return self.tokenizer.encode(self.documents[int(index)], return_tensors='pt')
+        return self.tokenizer.encode(self.documents[index], return_tensors='pt')
     
 class RuntimeBatchSampler(Sampler[List[int]]):
     """
@@ -170,13 +166,17 @@ class RuntimeBatchSampler(Sampler[List[int]]):
             yield b
 
 class RuntimeStreamer:
-    def __init__(self, input_csv: str, context_window: int, n_sequences: int, tokenizer: AutoTokenizer) -> None:
+    def __init__(self, input_csv: str, json_path: str, data_col: str, context_window: int, n_sequences: int, tokenizer: AutoTokenizer) -> None:
         """
         Instantiate a RuntimeStreamer object.
         
         :param self: RuntimeStreamer instance
         :param input_csv: Path to the CSV file output by the offline packing stage.
         :type input_csv: str
+        :param json_path: Path to the jsonl file holding the dataset.
+        :type json_path: str
+        :param data_col: Title of the column holding the data/text for the dataset.
+        :type data_col: str
         :param context_window: Context window length for the model being trained.
         :type context_window: int
         :param n_sequences: Number of sequences per training loop.
@@ -190,8 +190,12 @@ class RuntimeStreamer:
         self.num_sequences = n_sequences
         self.batches = self.read_batches()
         self.sampler = RuntimeBatchSampler(self.batches)
-        self.dataset = RuntimeDataset(self.batches, self.tokenizer)
+        self.dataset = RuntimeDataset(self.batches, self.tokenizer, json_path, data_col)
         self.dataloader = DataLoader(self.dataset, batch_sampler=self.sampler, collate_fn=self.collate_concat)
+
+        # Ensure tokenizer will support combining documents when packing later
+        if getattr(self.tokenizer, "eos_token", None) is None and "<|end|>" not in getattr(self.tokenizer, "all_special_tokens", []):
+            raise AttributeError("Selected tokenizer doesn't have an end-of-sequence token, which is required for packing microbatches.")
 
     def read_batches(self) -> List[List[int]]:
         """
@@ -201,8 +205,6 @@ class RuntimeStreamer:
         :return: List of microbatches (each a list of doc IDs).
         :rtype: List[List[int]]
         """
-        # TODO: Test that doing all of this with ints instead of strings works as expected
-        # Previous testing converted from string to int later
         with open(self.input_csv, newline='') as input_csv:
             reader = csv.reader(input_csv)
             batches = list(reader)
@@ -223,9 +225,8 @@ class RuntimeStreamer:
         elif "<|end|>" in getattr(self.tokenizer, "all_special_tokens", []):
             eos_token = "<|end|>"
         else:
-            # TODO: Handle this when tokenizer is originally selected, not here
-            print("Error: No valid EOS token found for tokenizer -- returning.")
-            return
+            # Because of exception handling in constructor, this should never happen
+            pass
         
         eos = Tensor(self.tokenizer.encode(eos_token))
         res = Tensor()
