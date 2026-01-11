@@ -81,7 +81,7 @@ class OfflinePacker(ABC):
 
         return files
     
-    def dict_to_list(self, file_assignments: Dict[int, int]) -> List[List[str]]:
+    def dict_to_list(self, file_assignments: Dict[int, int]) -> List[List[int]]:
         """
         Convert a dict from doc ID to microbatch ID to a list of microbatches (each a list of IDs).
         
@@ -89,7 +89,7 @@ class OfflinePacker(ABC):
         :param file_assignments: Dict from doc ID to microbatch assignment.
         :type file_assignments: Dict[int, int]
         :return: List of list of documents in each microbatch.
-        :rtype: List[List[str]]
+        :rtype: List[List[int]]
         """
         length = max(file_assignments.values()) + 1
         batches = [[] for _ in range(length)]

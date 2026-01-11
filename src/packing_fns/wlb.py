@@ -106,6 +106,9 @@ class Microbatch:
         return Microbatch.attention_workload(length) + Microbatch.operation_workload(length)
     
 class WLBOfflinePacker(OfflinePacker):
+    """
+    Offline implementation of workload-balanced heuristic packing algorithm from WLB-LLM (Wang et al. 2025)
+    """
     def __init__(self, json_path: str, data_col: str, output_csv: str, tokenizer: AutoTokenizer, queue_bounds: List[int]):
         super().__init__(json_path, data_col, output_csv, tokenizer)
         self.packed_microbatches = []
@@ -113,6 +116,22 @@ class WLBOfflinePacker(OfflinePacker):
         self.file_assignments = {}
 
     def iteration(self, docs: List[int], num_microbatches: int, max_size: int, remained_docs: List[int], iter_number: int) -> List[int]:
+        """
+        Run a single iteration of the WLB-LLM packing heuristic.
+
+        :param docs: Indices of documents to attempt to pack in current iteration.
+        :type docs: List[int]
+        :param num_microbatches: Number of microbatches to pack per iteration.
+        :type num_microbatches: int
+        :param max_size: Maximum size (tokens) of a single microbatch.
+        :type max_size: int
+        :param remained_docs: Indices of leftover documents from previous iterations.
+        :type remained_docs: List[int]
+        :param iter_num: Index of current iteration.
+        :type iter_number: int
+        :return: Remained/leftover documents that weren't packed in current iteration.
+        :rtype: List[int]
+        """
         doc_lens = self.get_doc_lens(docs)
 
         new_docs = []
@@ -158,7 +177,15 @@ class WLBOfflinePacker(OfflinePacker):
 
         return remained_docs
     
-    def pack_microbatches(self, **kwargs):
+    def pack_microbatches(self, **kwargs) -> List[List[int]]:
+        """
+        Pack microbatches according to WLB-LLM heuristic algorithm.
+
+        :param kwargs: Must specify the num_microbatches (per iteration), max_size (of each microbatch), & num_iterations.
+        :type kwargs: All ints
+        :return: List of microbatches (each a list of document IDs).
+        :rtype: List[List[int]]
+        """
         num_microbatches: int = kwargs["num_microbatches"]
         max_size: int = kwargs["max_size"]
         num_iterations: int = kwargs["num_iterations"]
