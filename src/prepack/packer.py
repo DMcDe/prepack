@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import csv
 import json
 import torch
@@ -37,7 +38,7 @@ class OfflineDataset(Dataset):
     def __getitem__(self, idx: int) -> int:
         return idx
     
-class OfflinePacker:
+class OfflinePacker(ABC):
     def __init__(self, json_path: str, data_col: str, output_csv: str, tokenizer: AutoTokenizer) -> None:
         """
         Instantiate an OfflinePacker object.
@@ -112,7 +113,12 @@ class OfflinePacker:
         """
         return batch
 
-    # TODO: Refactor OfflinePacker class to allow custom packing function
+    @abstractmethod
+    def pack_microbatches(self, **kwargs):
+        """
+        Pack dataset into microbatches. Must be overriden by user.
+        """
+        pass
     
 class RuntimeDataset(Dataset):
     def __init__(self, batches: List[List[int]], tokenizer: AutoTokenizer, json_path: str, data_col: str) -> None:
@@ -146,7 +152,6 @@ class RuntimeDataset(Dataset):
         return self.length
     
     def __getitem__(self, index: int) -> Tensor:
-        # TODO: Why is index not an int by default
         return self.tokenizer.encode(self.documents[int(index)], return_tensors='pt')
     
 class RuntimeBatchSampler(Sampler[List[int]]):
@@ -244,14 +249,3 @@ class RuntimeStreamer:
             ys.append(y)
 
         return torch.stack(xs), torch.stack(ys)
-    
-class PrepackedTrainer:
-    def __init__(self, dataset_path: str, data_column: str, csv_path: str, tokenizer_name: str,
-                 context_window: int, num_sequences: int):
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-
-        self.packer = OfflinePacker(dataset_path, data_column, csv_path, self.tokenizer)
-        self.streamer = RuntimeStreamer(csv_path, context_window, num_sequences, self.tokenizer)
-
-    
-    # TODO: Fill out this class
