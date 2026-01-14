@@ -60,6 +60,8 @@ class OfflinePacker(ABC):
             for line in fd:
                 self.documents.append(json.loads(line)[data_col])
 
+        self.file_assignments = {}
+
     def get_doc_lens(self, indices: List[int]) -> Dict[int, int]:
         """
         Finds the length of documents in the dataset.

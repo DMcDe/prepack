@@ -111,9 +111,7 @@ class WLBOfflinePacker(OfflinePacker):
     """
     def __init__(self, json_path: str, data_col: str, output_csv: str, tokenizer: AutoTokenizer, queue_bounds: List[int]):
         super().__init__(json_path, data_col, output_csv, tokenizer)
-        self.packed_microbatches = []
         self.queue = OutlierQueue(queue_bounds)
-        self.file_assignments = {}
 
     def iteration(self, docs: List[int], num_microbatches: int, max_size: int, remained_docs: List[int], iter_number: int) -> List[int]:
         """
@@ -191,7 +189,7 @@ class WLBOfflinePacker(OfflinePacker):
         num_iterations: int = kwargs["num_iterations"]
 
         if num_microbatches is None or max_size is None or num_iterations is None:
-            raise KeyError("Required kwarg not given. Pack_microbatches must specify num_microbatches, max_size, and num_iterations.")
+            raise KeyError("Required kwarg not given. pack_microbatches must specify num_microbatches, max_size, and num_iterations.")
         
         dataloader = DataLoader(self.dataset, batch_size=(len(self.dataset) + num_iterations - 1) // num_iterations, 
                                 shuffle=True, collate_fn=OfflinePacker.varlen_collate)
