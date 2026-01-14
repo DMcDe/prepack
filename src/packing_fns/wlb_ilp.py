@@ -1,7 +1,5 @@
 from src.prepack.packer import OfflinePacker
 from pulp import LpMinimize, LpProblem, LpStatus, lpSum, LpVariable, PULP_CBC_CMD
-from torch.utils.data import DataLoader
-from transformers import AutoTokenizer
 from typing import List
 
 def attention_workload(length: int) -> int:
@@ -14,7 +12,6 @@ def estimate_workload(length: int) -> int:
     return attention_workload(length) + operation_workload(length)
 
 class WLBILPOfflinePacker(OfflinePacker):
-    # TODO: Test
     def pack_microbatches(self, **kwargs) -> List[List[int]]:
         """
         Pack microbatches using an ILP formulation given in WLB-LLM.
@@ -24,6 +21,9 @@ class WLBILPOfflinePacker(OfflinePacker):
         :return: List of microbatches (each a list of document IDs).
         :rtype: List[List[int]]
         """
+        print("WARNING: If max_size is too low, PuLP will decide the problem is infeasible and will attempt to split some documents. "
+              "In this case, these documents are excluded from microbatches, and results vary widely.")
+        
         num_microbatches: int = kwargs["num_microbatches"]
         max_size: int = kwargs["max_size"]
         threads: int = kwargs["num_threads"] if "num_threads" in kwargs else 16
@@ -33,9 +33,9 @@ class WLBILPOfflinePacker(OfflinePacker):
             raise KeyError("Required kwarg not given. pack_microbatches must specify num_microbatches & max_size")
         
         num_docs: int = len(self.dataset)
-        doc_lengths = self.get_doc_lens(range(num_docs))
+        doc_lengths = list(self.get_doc_lens(range(num_docs)).values())
 
-        # Create a PULP model
+        # Create a PuLP model
         ilp = LpProblem(name="Workload_Balance", sense=LpMinimize)
 
         # Create a 2D binary matrix of documents and their assignments to microbatches (x_ij)
@@ -63,16 +63,17 @@ class WLBILPOfflinePacker(OfflinePacker):
 
         # Solve the model
         ilp.solve(PULP_CBC_CMD(threads=threads, msg=False, gapRel=gap))
+        print("ILP Solution Status:", LpStatus[ilp.status])
 
         for v in ilp.variables():
             if v.value() == 1.0 and "inclusion_matrix" in v.name:
                 # Parse variable name for microbatch and document
                 tuple = v.name.split("_(")[1]
                 nums = tuple.split(",_")
-                d = nums[0]
-                mb = nums[1]
+                d = int(nums[0])
+                mb = int(nums[1][:-1])
 
                 # Set assignment of microbatch to document
                 self.file_assignments[d] = mb
-        
+            
         return self.dict_to_list(self.file_assignments)
