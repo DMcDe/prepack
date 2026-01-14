@@ -95,12 +95,12 @@ class OfflinePacker(ABC):
         for k, v in file_assignments.items():
             batches[v].append(k)
 
+        # Filter out any unfilled batches
+        batches = [b for b in batches if len(b) > 0]
+
         with open(self.output_csv, 'w') as output_csv:
             writer = csv.writer(output_csv)
             writer.writerows(batches)
-
-        # Filter out any unfilled batches
-        batches = [b for b in batches if len(b) > 0]
 
         return batches
     
@@ -238,7 +238,7 @@ class RuntimeStreamer:
         # Optimization: pad to context_window_length + num_sequences + 1 & calculate step size dynamically
         # Avoids creating sequences with lots of EOS tokens
         if (res.size()[0] < self.context_window + self.num_sequences + 1):
-            res = torch.cat((res, Tensor(self.tokenizer.encode(eos_token) * ((self.context_window + self.sequences + 1) - res.size()[0]))))
+            res = torch.cat((res, Tensor(self.tokenizer.encode(eos_token) * ((self.context_window + self.num_sequences + 1) - res.size()[0]))))
 
         step_size = max(1, (res.size()[0] - self.context_window) // self.num_sequences)
         
