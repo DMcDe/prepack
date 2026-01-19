@@ -251,4 +251,4 @@ class RuntimeStreamer:
             xs.append(x)
             ys.append(y)
 
-        return torch.stack(xs), torch.stack(ys)
+        return torch.stack(xs).long(), torch.stack(ys).long()
