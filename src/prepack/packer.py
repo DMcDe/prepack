@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import csv
+import gzip
 import json
 import torch
 from torch import Tensor
@@ -22,7 +23,9 @@ class OfflineDataset(Dataset):
         :param data_col: Title of the column holding the data/text for the dataset.
         :type data_col: str
         """
-        with open(json_path, 'rt') as fd:
+        ofunc = gzip.open if json_path.endswith('gz') else open
+
+        with ofunc(json_path, 'rt') as fd:
             self.num_docs = sum(1 for _ in fd)
             
     def __len__(self) -> int:
@@ -56,7 +59,9 @@ class OfflinePacker(ABC):
 
         self.documents = []
 
-        with open(json_path, 'rt') as fd:
+        ofunc = gzip.open if json_path.endswith('gz') else open
+
+        with ofunc(json_path, 'rt') as fd:
             for line in fd:
                 self.documents.append(json.loads(line)[data_col])
 
@@ -139,7 +144,8 @@ class RuntimeDataset(Dataset):
         self.documents = []
 
         # TODO: Is this optimal? Prioritizes reducing random access latency at tradeoff of memory
-        with open(json_path, 'rt') as fd:
+        ofunc = gzip.open if json_path.endswith('gz') else open
+        with ofunc(json_path, 'rt') as fd:
             for line in fd:
                 self.documents.append(json.loads(line)[data_col])
 
