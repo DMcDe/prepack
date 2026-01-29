@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 import csv
 import gzip
 import json
@@ -13,7 +14,7 @@ class OfflineDataset(Dataset):
     PyTorch Dataset representation for the original Dataset, stored as a jsonl. 
     """
 
-    def __init__(self, json_path: str, data_col: str) -> None:
+    def __init__(self, documents: Sequence[str]) -> None:
         """
         Initialize an offline dataset representation.
         
@@ -23,10 +24,7 @@ class OfflineDataset(Dataset):
         :param data_col: Title of the column holding the data/text for the dataset.
         :type data_col: str
         """
-        ofunc = gzip.open if json_path.endswith('gz') else open
-
-        with ofunc(json_path, 'rt') as fd:
-            self.num_docs = sum(1 for _ in fd)
+        self.num_docs = len(documents)
             
     def __len__(self) -> int:
         """
@@ -34,36 +32,26 @@ class OfflineDataset(Dataset):
         """
         return self.num_docs
     
-    def __getitem__(self, idx: int) -> int:
-        return idx
+    def __getitem__(self, index: int) -> int:
+        return index
     
 class OfflinePacker(ABC):
-    def __init__(self, json_path: str, data_col: str, output_csv: str, tokenizer: AutoTokenizer) -> None:
+    def __init__(self, output_csv: str, tokenizer: AutoTokenizer, documents: Sequence[str]) -> None:
         """
         Instantiate an OfflinePacker object.
         
         :param self: OfflinePacker instance.
-        :param json_path: Path to the jsonl file holding the dataset.
-        :type json_path: str
-        :param data_col: Title of the column holding the data/text for the dataset.
-        :type data_col: str
         :param output_csv: Path & filename at which to store the CSV output of the packing algorithm.
         :type output_csv: str
         :param tokenizer: Hugging Face tokenizer to use to tokenize the dataset.
         :type tokenizer: AutoTokenizer
+        :param documents: Container that provides random access to docs in the training set. Must implement __getitem__ & __len__.
+        :type documents: Sequence[str]
         """
-        self.tokenizer = tokenizer
-        self.json_path = json_path
         self.output_csv = output_csv
-        self.dataset = OfflineDataset(json_path, data_col)
-
-        self.documents = []
-
-        ofunc = gzip.open if json_path.endswith('gz') else open
-
-        with ofunc(json_path, 'rt') as fd:
-            for line in fd:
-                self.documents.append(json.loads(line)[data_col])
+        self.tokenizer = tokenizer
+        self.documents = documents
+        self.dataset = OfflineDataset(documents)
 
         self.file_assignments = {}
 
@@ -121,10 +109,10 @@ class OfflinePacker(ABC):
         """
         Pack dataset into microbatches. Must be overriden by user.
         """
-        pass
+        raise NotImplementedError("Subclasses of OfflinePacker should implement pack_microbatches.")
     
 class RuntimeDataset(Dataset):
-    def __init__(self, batches: List[List[int]], tokenizer: AutoTokenizer, json_path: str, data_col: str) -> None:
+    def __init__(self, batches: List[List[int]], tokenizer: AutoTokenizer, documents: Sequence[str]) -> None:
         """
         Initialize a runtime, packed dataset.
         
@@ -133,25 +121,16 @@ class RuntimeDataset(Dataset):
         :type batches: List[List[int]]
         :param tokenizer: Hugging Face tokenizer to use to tokenize the document.
         :type tokenizer: AutoTokenizer
-        :param json_path: Path to the jsonl file holding the dataset.
-        :type json_path: str
-        :param data_col: Title of the column holding the data/text for the dataset.
-        :type data_col: str
+        :param documents: Container that provides random access to docs in the training set. Must implement __getitem__ & __len__.
+        :type documents: Sequence[str]
         """
         self.tokenizer = tokenizer
         self.length = sum([len(b) for b in batches])
-
-        self.documents = []
-
-        # TODO: Is this optimal? Prioritizes reducing random access latency at tradeoff of memory
-        ofunc = gzip.open if json_path.endswith('gz') else open
-        with ofunc(json_path, 'rt') as fd:
-            for line in fd:
-                self.documents.append(json.loads(line)[data_col])
+        self.documents = documents
 
     def __len__(self) -> int:
         """
-        Get the length (number of documents) of the packed dataset.
+        Get the length (number of documents across all microbatches) of the packed dataset.
         """
         return self.length
     
@@ -174,17 +153,15 @@ class RuntimeBatchSampler(Sampler[List[int]]):
             yield b
 
 class RuntimeStreamer:
-    def __init__(self, input_csv: str, json_path: str, data_col: str, context_window: int, n_sequences: int, tokenizer: AutoTokenizer) -> None:
+    def __init__(self, input_csv: str, documents: Sequence[str], context_window: int, n_sequences: int, tokenizer: AutoTokenizer) -> None:
         """
         Instantiate a RuntimeStreamer object.
         
         :param self: RuntimeStreamer instance
         :param input_csv: Path to the CSV file output by the offline packing stage.
         :type input_csv: str
-        :param json_path: Path to the jsonl file holding the dataset.
-        :type json_path: str
-        :param data_col: Title of the column holding the data/text for the dataset.
-        :type data_col: str
+        :param documents: Container that provides random access to docs in the training set. Must implement __getitem__ & __len__.
+        :type documents: Sequence[str]
         :param context_window: Context window length for the model being trained.
         :type context_window: int
         :param n_sequences: Number of sequences per training loop.
@@ -198,7 +175,7 @@ class RuntimeStreamer:
         self.num_sequences = n_sequences
         self.batches = self.read_batches()
         self.sampler = RuntimeBatchSampler(self.batches)
-        self.dataset = RuntimeDataset(self.batches, self.tokenizer, json_path, data_col)
+        self.dataset = RuntimeDataset(self.batches, self.tokenizer, documents)
         self.dataloader = DataLoader(self.dataset, batch_sampler=self.sampler, collate_fn=self.collate_concat)
 
         # Ensure tokenizer will support combining documents when packing later

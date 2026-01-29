@@ -1,7 +1,7 @@
 from src.prepack.packer import OfflinePacker
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
-from typing import List
+from typing import List, Sequence
 
 class OutlierQueue:
     """
@@ -109,8 +109,8 @@ class WLBOfflinePacker(OfflinePacker):
     """
     Offline implementation of workload-balanced heuristic packing algorithm from WLB-LLM (Wang et al. 2025)
     """
-    def __init__(self, json_path: str, data_col: str, output_csv: str, tokenizer: AutoTokenizer, queue_bounds: List[int]):
-        super().__init__(json_path, data_col, output_csv, tokenizer)
+    def __init__(self, output_csv: str, tokenizer: AutoTokenizer, documents: Sequence[str], queue_bounds: List[int]):
+        super().__init__(output_csv, tokenizer, documents)
         self.queue = OutlierQueue(queue_bounds)
 
     def iteration(self, docs: List[int], num_microbatches: int, max_size: int, remained_docs: List[int], iter_number: int) -> List[int]:
