@@ -13,12 +13,6 @@ class JSONLWrapper(Sequence):
         :type data_col: str
         """
 
-        # TODO: Is this optimal? Prioritizes reducing random access latency at tradeoff of memory
-        # Think I gotta change this to take the latency hit -- with large datasets this just eats up too much mem
-        # Investigate orjsonl https://pypi.org/project/orjsonl/
-        # Read this: https://junaid.foo/drafts/high-perf-jsonl-processing/
-        # Also consider pandas: https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html#line-delimited-json
-
         self.documents = []
         ofunc = gzip.open if json_path.endswith('gz') else open
 
