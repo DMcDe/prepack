@@ -3,3 +3,4 @@ __pycache__
 *.jsonl
 *.jsonl.*
 *test_output*
+*.egg-info
