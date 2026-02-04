@@ -1,4 +1,4 @@
-from src.prepack.packer import OfflinePacker
+from prepack.packer import OfflinePacker
 from pulp import LpMinimize, LpProblem, LpStatus, lpSum, LpVariable, PULP_CBC_CMD
 from typing import List
 
