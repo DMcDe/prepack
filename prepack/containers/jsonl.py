@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 import gzip
 import json
+import queue
 
 class JSONLWrapper(Sequence):
     def __init__(self, json_path: str, data_col: str) -> None:
@@ -25,4 +26,23 @@ class JSONLWrapper(Sequence):
     
     def __len__(self) -> int:
         return len(self.documents)
-    
+
+class JSONLRuntimeWrapper(Sequence):
+    def __init__(self, json_path: str, data_col: str, csv_path: str) -> None:
+        """
+        Instantiate a container to hold documents stored in a jsonl file.
+        Loads microbatches preemptively to parallelize with training.
+
+        :param json_path: Path to the jsonl file holding the dataset.
+        :type json_path: str
+        :param data_col: Title of the column holding the data/text for the dataset.
+        :type data_col: str
+        :param csv_path: Path to the CSV file holding the output of the Offline Packer.
+        :type csv_path: str
+        """
+
+        self.documents = queue.Queue()
+        ofunc = gzip.open if json_path.endswith('gz') else open
+
+        with ofunc(json_path, 'rt') as fd:
+            # TODO: Load the first XX mbs

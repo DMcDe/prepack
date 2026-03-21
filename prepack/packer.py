@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 import csv
 import torch
+from multiprocessing import Process, Queue
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, Sampler
 from transformers import AutoTokenizer
@@ -120,9 +121,15 @@ class RuntimeDataset(Dataset):
         :param documents: Container that provides random access to docs in the training set. Must implement __getitem__ & __len__.
         :type documents: Sequence[str]
         """
+        self.batches = batches
         self.tokenizer = tokenizer
         self.length = sum([len(b) for b in batches])
         self.documents = documents
+        self.mb_queue = Queue()
+        self.i = min(self.length, 256)
+
+        self.p = Process(target=self.enqueue_init)
+        self.p.start()
 
     def __len__(self) -> int:
         """
@@ -131,7 +138,25 @@ class RuntimeDataset(Dataset):
         return self.length
     
     def __getitem__(self, index: int) -> Tensor:
-        return self.tokenizer.encode(self.documents[index], return_tensors='pt')
+        assert(sample[0] == index)
+
+        self.p.join()
+        sample = self.documents.get()
+        if self.i < self.length:
+            self.p = Process(target=self.enqueue_next)
+            self.p.start()
+
+        return sample[1]
+    
+    def enqueue_init(self):
+        for b in range(self.i):
+            for doc in self.batches[b]:
+                self.mb_queue.put((doc, self.tokenizer.encode(self.documents[doc], return_tensors='pt')))
+        
+    def enqueue_next(self):
+        for doc in self.batches[self.i]:
+            self.documents.put((doc, self.tokenizer.encode(self.documents[doc], return_tensors='pt')))
+        self.i += 1
     
 class RuntimeBatchSampler(Sampler[List[int]]):
     """
