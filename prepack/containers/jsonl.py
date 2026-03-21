@@ -25,3 +25,4 @@ class JSONLWrapper(Sequence):
     
     def __len__(self) -> int:
         return len(self.documents)
+    
