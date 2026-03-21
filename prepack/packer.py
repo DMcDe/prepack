@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 import csv
-import gzip
-import json
 import torch
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, Sampler
@@ -11,7 +9,7 @@ from typing import Dict, List, Iterator
 
 class OfflineDataset(Dataset):
     """
-    PyTorch Dataset representation for the original Dataset, stored as a jsonl. 
+    PyTorch Dataset representation for the original Dataset. 
     """
 
     def __init__(self, documents: Sequence[str]) -> None:
@@ -19,10 +17,8 @@ class OfflineDataset(Dataset):
         Initialize an offline dataset representation.
         
         :param self: Class instance
-        :param json_path: Path to the jsonl file holding the dataset.
-        :type json_path: str
-        :param data_col: Title of the column holding the data/text for the dataset.
-        :type data_col: str
+        :param documents: Container that provides random access to docs in the training set. Must implement __getitem__ & __len__.
+        :type json_path: Sequence[str]
         """
         self.num_docs = len(documents)
             
