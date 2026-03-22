@@ -126,10 +126,12 @@ class RuntimeDataset(Dataset):
         self.length = sum([len(b) for b in batches])
         self.documents = documents
         self.mb_queue = Queue()
-        self.i = min(self.length, 256)
+        self.queued = min(self.length, 256)
+        
+        self.mb_count = 0
+        self.doc_count = 0
 
-        self.p = Process(target=self.enqueue_init)
-        self.p.start()
+        self.enqueue_init()
 
     def __len__(self) -> int:
         """
@@ -138,25 +140,32 @@ class RuntimeDataset(Dataset):
         return self.length
     
     def __getitem__(self, index: int) -> Tensor:
+        sample = self.mb_queue.get()
         assert(sample[0] == index)
-
-        self.p.join()
-        sample = self.documents.get()
-        if self.i < self.length:
-            self.p = Process(target=self.enqueue_next)
+        self.doc_count += 1
+        if self.doc_count == len(self.batches[self.mb_count]):
+            self.mb_count += 1
+            self.doc_count = 0
+        
+        if self.queued < self.length and self.queued - self.mb_count < 128:
+            self.p = Process(target=self.enqueue_batch)
             self.p.start()
 
         return sample[1]
     
     def enqueue_init(self):
-        for b in range(self.i):
+        print("In enqueue init")
+        for b in range(self.queued):
             for doc in self.batches[b]:
                 self.mb_queue.put((doc, self.tokenizer.encode(self.documents[doc], return_tensors='pt')))
         
-    def enqueue_next(self):
-        for doc in self.batches[self.i]:
-            self.documents.put((doc, self.tokenizer.encode(self.documents[doc], return_tensors='pt')))
-        self.i += 1
+    def enqueue_batch(self):
+        print("In enqueue next")
+        top = min(self.length, self.queued + 128)
+        for b in range(self.queued, top):
+            for doc in self.batches[b]:
+                self.mb_queue.put((doc, self.tokenizer.encode(self.documents[doc], return_tensors='pt')))
+        self.queued = top
     
 class RuntimeBatchSampler(Sampler[List[int]]):
     """
