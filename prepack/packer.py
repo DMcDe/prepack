@@ -147,7 +147,7 @@ class RuntimeDataset(Dataset):
             self.mb_count += 1
             self.doc_count = 0
         
-        if self.queued < self.length and self.queued - self.mb_count < 128:
+        if self.queued < self.length and self.queued - self.mb_count < 256:
             self.p = Process(target=self.enqueue_batch)
             self.p.start()
 
