@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "Open source implementation of Prepack, an offline microbatch packer for LLM training. If used, please cite it as below."
+authors:
+- family-names: "McDermott"
+  given-names: "David"
+title: "Prepack"
+version: 1.0.0
+date-released: 2026-03-28
+url: "https://github.com/DMcDe/prepack"
